@@ -1,6 +1,12 @@
-# Welcome to GitHub Desktop!
-
-This is your README. READMEs are where you can communicate what your project is and how to use it.
-
-Write your name on line 6, save it, and then head back to GitHub Desktop.
-Annaler
+# What're you looking for?
+这是一个maekdown文件，大概。
+在这个名为lab的仓库里，我写了这样一个readme。
+---
+## IDK
+- 我不知道。
+```bash
+#克隆仓库
+git clone https:github.com/Annaler/lab.git
+#进入仓库
+cd lab
+```
