@@ -1,3 +1,7 @@
-.vscode/
-main.exe
-out
+*
+
+!*/
+
+!.gitignore
+!main.c
+!README.md
