@@ -77,6 +77,16 @@ void getToday(char **date){
     *date = m;
 }
 
+static void clearStdin(void){
+    int c;
+    while ( (c = getchar()) != '\n' && c != EOF ){}
+}
+static bool getInput(char *buf, size_t size){
+    if (fgets(buf, size, stdin) == NULL) return false;
+    if (strchr(buf, '\n') == NULL) clearStdin();
+    return true;
+}
+
 static void mait(char **str, const char *src){
     char *s = malloc(strlen(src) + 1);
     if (s == NULL){//may use perror? //yep
@@ -88,16 +98,15 @@ static void mait(char **str, const char *src){
     *str = s;
 }
 
-bool in_dict(char *str, const char * const dict_key[], const char * const dict_value[]){
-    
-    /*for i in dict_key[]{
-        if (str == dict_key[i]){ str = dict_value[i]; return true;}
+//在key则value，在value则value，二者皆true
+bool in_dict(char **str, const char * const dict_key[], const char * const dict_value[]){
+    for (int i = 0; dict_key[i] != NULL; i++){
+        if (strcmp(*str, dict_key[i]) == 0){ mait(str, dict_value[i]); return true; }
     }
-    for i in dict_value[]{
-        if (str == dict_value[i]) return true;
+    for (int i = 0; dict_value[i] != NULL; i++){
+        if (strcmp(*str, dict_value[i]) == 0) return true;
     }
-    return false;*/
-    exit(here_not_done_yet);
+    return false;
 }
 
 //man!
@@ -116,16 +125,17 @@ int main() {
     while (!valid){
         printf("可选: 1. 吃喝 2. 玩乐 3.衣 4.住 5.行 6.其他\n");
         printf("请选择：");
-        if (fgets(input, sizeof(input), stdin) == NULL) continue;
+        if (!getInput(input, sizeof(input))) continue;
         inputClean(input);
         size_t len = strlen(input);
         if (len == 0){
             printf("\nNot Sure?\n");
             continue;
         }
-        valid = in_dict(input, sorts_key, sorts_value);
-        if (!valid){ printf("\n您再斟酌斟酌\n"); continue; }
-        mait(&sort, input);
+        if (!in_dict(&sort, sorts_key, sorts_value)){
+            printf("\n您再斟酌斟酌\n");
+            continue;
+        }
     };
 
     //getAmount
@@ -136,7 +146,7 @@ int main() {
     do{
         valid = false;
         printf("备注：");
-        if (fgets(input, sizeof(input), stdin) == NULL) continue;
+        if (!getInput(input, sizeof(input))) continue;
         //去除换行符
         inputClean(input);
         //超载重来
@@ -154,14 +164,11 @@ int main() {
     char *date = NULL;
     while(true){
         printf("时间(默认当天):");
-        fgets(input, sizeof(input), stdin);
+        if (!getInput(input, sizeof(input))){ getToday(&date); break; }
         inputClean(input);
         //if empty, today. else user's input
-        if (strlen(input) == 0){ getToday(&date); break; }
-        else{
-            if (validDate(input)){ mait(&date, input); break; }
-            else printf("不支持的格式。\n");
-        }
+        if (validDate(input)){ mait(&date, input); break; }
+        printf("不支持的格式。\n");
     }
 
 
