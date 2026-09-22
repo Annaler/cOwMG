@@ -3,6 +3,8 @@
 !*/
 
 !.gitignore
+!cJSON.c
+!cJSON.h
 !main.c
 !README.md
 !LICENSE

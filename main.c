@@ -1,11 +1,100 @@
 // SPDX-FileCopyrightText: 2026 Annaler
 // SPDX-License-Identifier: MPL-2.0
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include <time.h>
+#include "cJSON.h"
 
+#define getItem(obj, key) cJSON_GetObjectItemCaseSensitive((obj), (key))
+
+typedef struct{
+    int id;
+    char sort[10];
+    char amount[32];
+    char mark[64];
+    char date[32];
+} acc;
+typedef struct {
+    acc *account;
+    int len;
+} accList ;
+
+int exist_file(const char *path){
+    FILE *file = fopen(path, "rb");
+    if (file){
+        fseek(file, 0, SEEK_END);
+        long len = ftell(file);
+        fclose(file);
+        if (len > 0) return 0;
+    }
+
+    file = fopen(path, "w");
+    if (!file) return 404;
+    fputs("[]", file);
+    fclose(file);
+    return 1;
+}
+
+char *read_file(const char *path){
+    FILE *file = fopen(path, "rb");
+    if (!file) return NULL;
+
+    fseek(file, 0, SEEK_END);
+    long len = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    if (len < 0){ fclose(file); return NULL; }
+
+    char *buf = (char *)malloc(len + 1);
+    if (!buf){ fclose(file); return NULL; }
+
+    size_t end = fread(buf, 1, len, file);
+    buf[end] = '\0';
+    fclose(file);
+    return buf;
+}
+
+//data from JSON到acc_list
+accList load_data(const char *str){
+    accList accs = { NULL, 0 };
+    
+    cJSON *root = cJSON_Parse(str);
+    if (!root){ fprintf(stderr, "json analysing failed: %s\n", cJSON_GetErrorPtr()); return accs; }
+
+    if (!cJSON_IsArray(root)){ fprintf(stderr, "root aint Array\n"); cJSON_Delete(root); }
+    int size = cJSON_GetArraySize(root);
+    if (size <= 0){ cJSON_Delete(root); return accs; }
+
+    accs.account = (acc *)calloc(size, sizeof(acc));
+    if (!accs.account){ fprintf(stderr, "mem out\n"); cJSON_Delete(root); return accs; }
+    accs.len = size;
+
+
+    int i = 0;
+    cJSON *item = NULL;
+    cJSON_ArrayForEach(item, root){
+        cJSON *id = getItem(item, "id");
+        cJSON *sort = getItem(item, "sort");
+        cJSON *amount = getItem(item, "amount");
+        cJSON *mark = getItem(item, "mark");
+        cJSON *date = getItem(item, "date");
+
+        if (cJSON_IsNumber(id)) accs.account[i].id = id->valueint;
+        if (cJSON_IsString(sort)) snprintf(accs.account[i].sort, 10, "%s", sort->valuestring);
+        if (cJSON_IsString(amount)) snprintf(accs.account[i].amount, 64, "%s", amount->valuestring);
+        if (cJSON_IsString(mark)) snprintf(accs.account[i].mark, 32, "%s", mark->valuestring);
+        if (cJSON_IsString(date)) snprintf(accs.account[i].date, 64, "%s", date->valuestring);
+        i++;
+    }
+    cJSON_Delete(root);
+    return accs;
+}
+int save_data(const char *path, const accList *accs){
+    exit(2344);//占位
+}
 
 //去除换行符
 static size_t fuck_lineBreak(char *str){
@@ -126,7 +215,7 @@ static char getVal(){
     exit(2344);
 }
 //man!
-int main() {
+void newAcc() {
     char input[100];//100应该够缓冲了
     bool quit = false;
     
@@ -203,6 +292,7 @@ int main() {
         mait(&date, input);
     }
     
+    //comp, append, save
 
     //...
     free(sort); sort = NULL;
@@ -210,5 +300,31 @@ int main() {
     free(date); date = NULL;
     //may loop it
     //if (quit = true) break;
-    return 44;
 }
+
+
+int main(){
+    //load data from data.json
+    //empty? create it
+    const char *path = "data.json";
+
+    if (exist_file(path) < 0){ perror("exist_file failed."); return 1; }
+
+    char *json = read_file(path);
+    if (!json){ perror("read_file failed."); return 1; }
+    
+    accList accounts = load_data(json);
+    free(json);
+
+    //mainMenu
+    //want what
+    //format choose
+    char choose;
+    switch(choose){
+        case '1' : {newAcc(); break;}
+        //...
+    }
+    //free(accs.account);
+    return 0;
+}
+
