@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <ctype.h>
 #include <time.h>
 #include "cJSON.h"
 
@@ -207,13 +208,56 @@ bool in_iQuit(const char *buf){
     return false;
 }
 
-bool validAmount(char *am){
-    exit(2344);
+void formatAmount(char *buf){
+    char *c = buf;
+    bool isNegative = false;
+    if (*c == '-'){ isNegative = true; c++; }
+
+    char *int_start = c;
+    while(isdigit((unsigned char)*c)) c++;
+    size_t int_len = (size_t)(c - int_start);
+
+    /*size_t deci_len = 0;
+    char *deci_start = NULL;
+    if (*c = "."){
+        c++;
+        deci_start = c;
+        while (isdigit((unsigned char)*c) c++;
+        deci_len = (size_t)(c - deci_start);
+    }*/
+    //总共就3种情况:0/1/2位小数，写毛线循环
+    char d1 = '0', d2 = '0';
+    if (*c == '.'){
+        c++;
+        if (isdigit((unsigned char)*c)){ d1 = *c; c++; }
+        if (isdigit((unsigned char)*c)){ d1 = *c; c++; }
+    }
+    char *w = (int_start + int_len);
+    *w++ = '.';
+    *w++ = d1;
+    *w++ = d2;
+    *w++ = '\0';
 }
 
-static char getVal(){
-    exit(2344);
+bool validAmount(const char *str){
+    if (str == NULL || *str == '\0') return false;
+    
+    const char *c = str;
+    if (*c == '-') c++;
+    if (!isdigit((unsigned char)*c)) return false;//小数点前至少一位
+    do{ c++; } while(isdigit((unsigned char)*c));
+    if (*c == '.'){
+        c++;
+        int d = 0;
+        while (isdigit((unsigned char)*c)){ c++; d++; }
+        if (d > 2) return false;
+    }
+    return true;
 }
+//我忘了这个函数何意味
+/*static char getVal(){
+    exit(2344);
+}*/
 //man!
 void newAcc() {
     char input[100];//100应该够缓冲了
@@ -234,6 +278,7 @@ void newAcc() {
         inputClean(input);
         if (in_iQuit(input)){ quit = true; break;}//how about not goto?
         //size_t len = strlen(input);
+    exit(2344);
         if (strlen(input) == 0){
             printf("\nNot Sure?\n");
             continue;
@@ -255,7 +300,8 @@ void newAcc() {
             printf("\nno?\n");
             continue;
         }
-        if (!validAmount(input)) continue;
+        if (!validAmount(input)){ printf("格式错误");continue; }
+        formatAmount(input);
         mait(&amount, input);
     }
     
