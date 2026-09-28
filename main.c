@@ -73,7 +73,6 @@ accList load_data(const char *str){
     if (!accs.account){ fprintf(stderr, "mem out\n"); cJSON_Delete(root); return accs; }
     accs.len = size;
 
-
     int i = 0;
     cJSON *item = NULL;
     cJSON_ArrayForEach(item, root){
@@ -84,16 +83,17 @@ accList load_data(const char *str){
         cJSON *date = getItem(item, "date");
 
         if (cJSON_IsNumber(id)) accs.account[i].id = id->valueint;
-        if (cJSON_IsString(sort)) snprintf(accs.account[i].sort, 10, "%s", sort->valuestring);
-        if (cJSON_IsString(amount)) snprintf(accs.account[i].amount, 64, "%s", amount->valuestring);
-        if (cJSON_IsString(mark)) snprintf(accs.account[i].mark, 32, "%s", mark->valuestring);
-        if (cJSON_IsString(date)) snprintf(accs.account[i].date, 64, "%s", date->valuestring);
+        if (cJSON_IsString(sort)) snprintf(accs.account[i].sort, sizeof(accs.account[i].sort), "%s", sort->valuestring);
+        if (cJSON_IsString(amount)) snprintf(accs.account[i].amount, sizeof(accs.account[i].amount), "%s", amount->valuestring);
+        if (cJSON_IsString(mark)) snprintf(accs.account[i].mark, sizeof(accs.account[i].mark), "%s", mark->valuestring);
+        if (cJSON_IsString(date)) snprintf(accs.account[i].date, sizeof(accs.account[i].date), "%s", date->valuestring);
         i++;
     }
     cJSON_Delete(root);
     return accs;
 }
 int save_data(const char *path, const accList *accs){
+    //不重排,4real
     exit(2344);//占位
 }
 
@@ -189,7 +189,7 @@ static void mait(char **str, const char *src){
 }
 
 //t在key则value，在value则value，二者皆true
-bool in_dict(char **str, const char * const dict_key[], const char * const dict_value[]){
+bool in_sort(char **str, const char * const dict_key[], const char * const dict_value[]){
     if (*str == NULL) return false;
     for (int i = 0; dict_key[i] != NULL; i++){
         if (strcmp(*str, dict_key[i]) == 0){ mait(str, dict_value[i]); return true; }
@@ -258,15 +258,25 @@ bool validAmount(const char *str){
 /*static char getVal(){
     exit(2344);
 }*/
+
+void printr(const char *__format, int times){
+    if (__format == NULL ) perror("printr,but print what?");
+    for (int i = 0; i < times; i++){
+        printf("%s", __format);
+    }
+    printf("\n");
+}
+
 //man!
-void newAcc() {
+void menu_new(const char *path, accList *accs) {
     char input[100];//100应该够缓冲了
     bool quit = false;
     
-    //load from data.json
-
+    printf("纸笔已备好，请！");
     //getID
-    
+    int last_id = accs->account[accs->len-1].id;
+    int id = (last_id + 1);
+
     //getSort
     const char * const sorts_key[] = {"1", "2", "3", "4", "5", "6", NULL};
     const char * const sorts_value[] = {"吃喝", "玩乐", "衣", "住", "行", "其他", NULL};
@@ -283,14 +293,14 @@ void newAcc() {
             printf("\nNot Sure?\n");
             continue;
         }
-        if (!in_dict(&sort, sorts_key, sorts_value)){
+        if (!in_sort(&sort, sorts_key, sorts_value)){
             printf("\n您再斟酌斟酌\n");
             continue;
         };
     };
 
     //getAmount
-    char *amount = NULL;
+    char *amount = NULL;//计算时用int64_t
     while(amount == NULL && !quit){
         printf("Amount:");
         if (!getInput(input, sizeof(input))) continue;
@@ -300,7 +310,7 @@ void newAcc() {
             printf("\nno?\n");
             continue;
         }
-        if (!validAmount(input)){ printf("格式错误");continue; }
+        if (!validAmount(input)){ printf("格式错误"); continue; }
         formatAmount(input);
         mait(&amount, input);
     }
@@ -339,13 +349,19 @@ void newAcc() {
     }
     
     //comp, append, save
-
+    acc account;
+    account.id = id;
+    strcpy(account.date, date);
+    strcpy(account.sort, sort);
+    strcpy(account.amount, amount);
+    strcpy(account.mark, mark);
+    save_data(path, accs);
     //...
     free(sort); sort = NULL;
     free(mark); mark = NULL;
     free(date); date = NULL;
     //may loop it
-    //if (quit = true) break;
+    //if (quit = true) break;//dont,
 }
 
 
@@ -358,19 +374,50 @@ int main(){
 
     char *json = read_file(path);
     if (!json){ perror("read_file failed."); return 1; }
-    
+
     accList accounts = load_data(json);
     free(json);
 
-    //mainMenu
-    //want what
-    //format choose
-    char choose;
-    switch(choose){
-        case '1' : {newAcc(); break;}
-        //...
+    while (true){
+        //mainMenu
+        char input[100];//100应该够缓冲了
+        //bool quit = false;
+        char choose;
+        printr("=", 44);
+        printf("c · Oh where Money Go?");
+        printr("=", 44);
+        printf("1.新账(n) 2.阅账(v) 3.查账(f)\n4.划账(d) 5.统账(c) 6.改账(e)\n0.合账(q)\n");
+        printr("=", 44);
+        printf("掌柜的，怎么说？");
+        getInput(input, sizeof(input));
+        inputClean(input);
+        if (in_iQuit(input)) choose = '0';
+        //want what
+        if (input == "1" || input == "n") choose = '1';
+        else if (input == "1" || input == "n") choose = '1';
+        else if (input == "2" || input == "v") choose = '2';
+        else if (input == "3" || input == "f") choose = '3';
+        else if (input == "4" || input == "d") choose = '4';
+        else if (input == "5" || input == "c") choose = '5';
+        else if (input == "6" || input == "e") choose = '6';
+        else{
+            printf("\n这不对吧。\n");
+            continue;
+        }
+        //format choose
+
+        switch(choose){
+            case '1' : { menu_new(path, &accounts); break; }
+            case '2' : { break; } 
+            case '3' : { break; }
+            case '4' : { break; }
+            case '5' : { break; }
+            case '6' : { break; }
+            case '0' : goto out;
+        }
     }
-    //free(accs.account);
+    out:
+    free(accounts.account);
     return 0;
 }
 
