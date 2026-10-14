@@ -445,9 +445,9 @@ int main(){
         char input[10];//10应该够...吧
         //bool quit = false;
         printr("=", 44);
-        printf("c · Oh where Money Go?");
+        printf("\nc · Oh where Money Go?\n");
         printr("=", 44);
-        printf("1.新账(n) 2.阅账(v) 3.查账(f)\n4.划账(d) 5.统账(c) 6.改账(e)\n0.合账(q)\n");
+        printf("\n1.新账(n) 2.阅账(v) 3.查账(f)\n4.划账(d) 5.统账(c) 6.改账(e)\n0.合账(q)\n");
         printr("=", 44);
         printf("掌柜的，怎么说？");
         getInput(input, sizeof(input));
