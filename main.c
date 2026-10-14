@@ -10,7 +10,6 @@
 #include "cJSON.h"
 
 #define getItem(obj, key) cJSON_GetObjectItemCaseSensitive((obj), (key))
-
 typedef struct{
     int id;
     char sort[10];
@@ -22,6 +21,15 @@ typedef struct {
     acc *account;
     int len;
 } accList ;
+
+void prinerr(const char *__format){ fprintf(stderr, "%s", __format); }
+void printr(const char *__format, int times){
+    if (__format == NULL ){ prinerr("printr,but print what?"); return; }
+    for (int i = 0; i < times; i++){
+        printf("%s", __format);
+    }
+    printf("\n");
+}
 
 int exist_file(const char *path){
     FILE *file = fopen(path, "rb");
@@ -65,12 +73,16 @@ accList load_data(const char *str){
     cJSON *root = cJSON_Parse(str);
     if (!root){ fprintf(stderr, "json analysing failed: %s\n", cJSON_GetErrorPtr()); return accs; }
 
-    if (!cJSON_IsArray(root)){ fprintf(stderr, "root aint Array\n"); cJSON_Delete(root); }
+    if (!cJSON_IsArray(root)){
+        prinerr("root aint Array\n");
+        cJSON_Delete(root);
+        return accs;
+    }
     int size = cJSON_GetArraySize(root);
     if (size <= 0){ cJSON_Delete(root); return accs; }
 
     accs.account = (acc *)calloc(size, sizeof(acc));
-    if (!accs.account){ fprintf(stderr, "mem out\n"); cJSON_Delete(root); return accs; }
+    if (!accs.account){ prinerr("mem out\n"); cJSON_Delete(root); return accs; }
     accs.len = size;
 
     int i = 0;
@@ -116,7 +128,7 @@ cJSON *comp_account(const accList *accs){
     if (!root) return NULL;
     for (int i = 0; i < accs->len; i++){
         cJSON *acc = cJSON_CreateObject();
-        if (!acc){ cJSON_Delete(root); perror("cJOOSN_CreateObject failed"); return NULL; }
+        if (!acc){ cJSON_Delete(root); prinerr("cJSON_CreateObject failed"); return NULL; }
         cJSON_AddNumberToObject(acc, "id", accs->account[i].id);
         cJSON_AddStringToObject(acc, "date", accs->account[i].date);
         cJSON_AddStringToObject(acc, "sort", accs->account[i].sort);
@@ -199,8 +211,8 @@ static void clearStdin(void){
     int c;
     while ((c = getchar()) != '\n' && c != EOF ){}
 }
-static bool getInput(char *buf){
-    if (fgets(buf, sizeof(buf), stdin) == NULL) {
+static bool getInput(char *buf, size_t size){
+    if (fgets(buf, size, stdin) == NULL) {
         if (feof(stdin)) exit(3247);
         return false;
     }
@@ -220,33 +232,37 @@ static void mait(char **str, const char *src){
 }
 
 //t在key则value，在value则value，二者皆true
-bool in_sort(char **str, const char * const dict_key[], const char * const dict_value[]){
-    if (*str == NULL) return false;
+const char *in_sort(
+        char *str,
+        const char * const dict_key[],
+        const char * const dict_value[]){
     for (int i = 0; dict_key[i] != NULL; i++){
-        if (strcmp(*str, dict_key[i]) == 0){ mait(str, dict_value[i]); return true; }
+        if (strcmp(str, dict_key[i]) == 0) return dict_value[i];
     }
     for (int i = 0; dict_value[i] != NULL; i++){
-        if (strcmp(*str, dict_value[i]) == 0) return true;
+        if (strcmp(str, dict_value[i]) == 0) return dict_value[i];
     }
     //not in
-    free(*str); *str = NULL; return false;
+    return NULL;
 }
 bool in_iQuit(const char *buf){
-    const char  * const iQuit[] = {"0", "q", "Q", "quit", "Quit", "退出", NULL}; 
+    const char * const iQuit[] = {"0", "q", "Q", "quit", "Quit", "退出", "合账", NULL}; 
     for (int i = 0; iQuit[i] != NULL; i++){
         if (strcmp(buf, iQuit[i]) == 0) return true;
     }
     return false;
 }
 
-void formatAmount(char *buf){
+int formatAmount(char *buf, size_t size){
     char *c = buf;
-    bool isNegative = false;
-    if (*c == '-'){ isNegative = true; c++; }
+    if (*c == '-') c++;
 
     char *int_start = c;
     while(isdigit((unsigned char)*c)) c++;
     size_t int_len = (size_t)(c - int_start);
+
+    size_t need = ((size_t)(int_start - buf) + int_len + 4);
+    if (need > size) return -1;
 
     /*size_t deci_len = 0;
     char *deci_start = NULL;
@@ -261,13 +277,15 @@ void formatAmount(char *buf){
     if (*c == '.'){
         c++;
         if (isdigit((unsigned char)*c)){ d1 = *c; c++; }
-        if (isdigit((unsigned char)*c)){ d1 = *c; c++; }
+        if (isdigit((unsigned char)*c)){ d2 = *c; c++; }
+        if ( *c != '\0') return 1;
     }
     char *w = (int_start + int_len);
     *w++ = '.';
     *w++ = d1;
     *w++ = d2;
     *w++ = '\0';
+    return 0;
 }
 
 bool validAmount(const char *str){
@@ -290,29 +308,28 @@ bool validAmount(const char *str){
     exit(2344);
 }*/
 
-void printr(const char *__format, int times){
-    if (__format == NULL ) perror("printr,but print what?");
-    for (int i = 0; i < times; i++){
-        printf("%s", __format);
-    }
-    printf("\n");
-}
+
 
 //man!
-void menu_new(const char *path, accList *accs) {
+int menu_new(const char *path, accList *accs) {
+    int ret = 0;
     char input[100];//100应该够缓冲了
     
-    //getID
     int id = 1;
+    char *mark = NULL;
+    char *amount = NULL;//计算时用int64_t
+    char *date = NULL;
+    char *sort = NULL;
+
+    //getID
     if (accs->len >0) id = (accs->account[accs->len-1].id + 1);
 
     const char * const sorts_key[] = {"1", "2", "3", "4", "5", "6", NULL};
     const char * const sorts_value[] = {"吃喝", "玩乐", "衣", "住", "行", "其他", NULL};
-    char *sort = NULL;
     while (sort == NULL){
         printf("可选: 1. 吃喝 2. 玩乐 3.衣 4.住 5.行 6.其他\n");
         printf("请选择：");
-        if (!getInput(input)) continue;
+        if (!getInput(input, sizeof(input))) continue;
         inputClean(input);
         if (in_iQuit(input)) goto quit;//how about not goto?
         //size_t len = strlen(input);
@@ -320,33 +337,35 @@ void menu_new(const char *path, accList *accs) {
             printf("\nNot Sure?\n");
             continue;
         }
-        if (!in_sort(&sort, sorts_key, sorts_value)){
-            printf("\n您再斟酌斟酌\n");
-            continue;
-        };
+        const char *v = in_sort(input, sorts_key, sorts_value);
+        if (!v){ printf("\n您再斟酌斟酌\n"); continue; }
+        mait(&sort, v);
     };
 
     //getAmount
-    char *amount = NULL;//计算时用int64_t
     while(amount == NULL){
         printf("Amount:");
-        if (!getInput(input)) continue;
+        if (!getInput(input, sizeof(input))) continue;
         inputClean(input);
         if (in_iQuit(input)) goto quit;
         if (strlen(input) == 0){
             printf("\nno?\n");
             continue;
         }
-        if (!validAmount(input)){ printf("格式错误"); continue; }
-        formatAmount(input);
+        if (!validAmount(input)){ printf("格式错误\n"); continue; }
+        int how = (formatAmount(input, sizeof(input)));
+        if (how == 1){
+            printf("that's too right.");
+            continue;
+        }
+        if (how == -1){ ret = -1; goto quit; }
         mait(&amount, input);
     }
     
     //getMark
-    char *mark = NULL;
     while(mark == NULL){
         printf("备注：");
-        if (!getInput(input)) continue;
+        if (!getInput(input, sizeof(input))) continue;
         //去除换行符
         inputClean(input);
         if (in_iQuit(input)) goto quit;
@@ -360,10 +379,9 @@ void menu_new(const char *path, accList *accs) {
     }
 
     //getDate
-    char *date = NULL;
     while(date == NULL){
         printf("时间(默认当天):");
-        getInput(input);
+        if (!getInput(input, sizeof(input))) continue;
         inputClean(input);
         if (in_iQuit(input)) goto quit;
         //if empty, today. else user's input
@@ -384,14 +402,18 @@ void menu_new(const char *path, accList *accs) {
     strcpy(account.mark, mark);
     //对accs操作
     acc *tmp = realloc(accs->account, (sizeof(acc) * (accs->len + 1)));
-    if (!tmp){ perror("realloc failed"); goto quit; }
+    if (!tmp){ perror("realloc failed"); ret = -1; goto quit; }
     accs->account = tmp;
     accs->account[accs->len] = account;
     accs->len++;   
     //对json操作一遍
-    cJSON *root = comp_account(accs);//下方失败回滚//不，不如文件改写成功再改内存//不，过度复杂了那就
-    if (!root){ accs->len--; perror("comp_account failed\n"); goto quit; }
-    if (save_data(path,  root) != 0){ accs->len--; perror("save_data failed"); }
+    cJSON *root = comp_account(accs);//下方失败回滚
+                                     //不，不如文件改写成功再改内存
+                                     //不，过度复杂了那就
+    if (!root){ accs->len--; prinerr("comp_account failed\n"); ret = -1; goto quit; }
+    if (save_data(path,  root) != 0){
+        accs->len--; prinerr("save_data failed"); ret = -1;
+    }
     cJSON_Delete(root);
    //...
 quit:
@@ -399,6 +421,7 @@ quit:
     free(amount);
     free(mark);
     free(date);
+    return ret;
     //may loop it
     //if (quit = true) break;//dont,
 }
@@ -409,7 +432,7 @@ int main(){
     //empty? create it
     const char *path = "data.json";
 
-    if (exist_file(path) < 0){ perror("exist_file failed."); return 1; }
+    if (exist_file(path) == 404){ prinerr("exist_file failed."); return 1; }
 
     char *json = read_file(path);
     if (!json){ perror("read_file failed."); return 1; }
@@ -427,7 +450,7 @@ int main(){
         printf("1.新账(n) 2.阅账(v) 3.查账(f)\n4.划账(d) 5.统账(c) 6.改账(e)\n0.合账(q)\n");
         printr("=", 44);
         printf("掌柜的，怎么说？");
-        getInput(input);
+        getInput(input, sizeof(input));
         inputClean(input);
         if (in_iQuit(input)) goto out;
         if (strlen(input) != 1){
@@ -449,21 +472,36 @@ int main(){
 
         switch(input[0]){
             //新账
-            case '1': case 'n': menu_new(path, &accounts); break;
+            case '1': case 'n':
+                if (menu_new(path, &accounts)){
+                    prinerr("menu_new error, exit.\n");
+                    goto out;
+                } break;
             //阅账
-            case '2': case 'v': break; 
+            case '2': case 'v':
+                printf("not done yet.\n");
+                break; 
             //查账
-            case '3': case 'f': break;
+            case '3': case 'f':
+                printf("not done yet.\n");
+                break;
             //划账
-            case '4': case 'd': break;
+            case '4': case 'd': 
+                printf("not done yet.\n");
+                break;
             //统账
-            case '5': case 'c': break;
+            case '5': case 'c':
+                printf("not done yet.\n");
+                break;
             //改帐
-            case '6': case 'e': break;
+            case '6': case 'e':
+                printf("not done yet.\n");
+                break;
             //Man, what can I say?
             default: printf("\n这不对吧。\n"); continue;
         }
     }
+
 out:
     free(accounts.account);
     return 0;
