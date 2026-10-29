@@ -2,9 +2,19 @@
 
 !*/
 
-!.gitignore
-!cJSON.c
-!cJSON.h
-!main.c
-!README.md
-!LICENSE
+!/.gitignore
+!/README.md
+!/LICENSE
+
+!/thirdparty/cJSON.c
+!/thirdparty/cJSON.h
+
+
+!/main.c
+
+!/mi/menu.c
+!/mi/menu.h
+!/mi/utils.c
+!/mi/utils.h
+
+
