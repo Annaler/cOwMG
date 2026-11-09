@@ -7,6 +7,8 @@
 #include <time.h>
 #include "utils.h"
 
+
+// IO
 void prinerr(const char *__format){ fprintf(stderr, "%s", __format); }
 void printr(const char *__format, int times){
     if (__format == NULL ){ prinerr("printr,but print what?"); return; }
@@ -16,6 +18,7 @@ void printr(const char *__format, int times){
     printf("\n");
 }
 
+// file&data
 int exist_file(const char *path){
     FILE *file = fopen(path, "rb");
     if (file){
@@ -89,25 +92,89 @@ accList load_data(const char *str){
     cJSON_Delete(root);
     return accs;
 }
+// cJONS_print give [{
+// ...
+// }]
+// format json from cJSON_PrintUnformatted(),
+static int pretty_print(FILE *fp, const char *s){
+    if (fp == NULL || s == NULL) return -1;
+
+    int indent = 0, in_str = 0;
+    for (const char *p = s; *p; p++){
+        char c = *p;
+        if (in_str){
+            fputc(c, fp);
+            if (c == '\\'){ if (p[1]) fputc(*++p, fp); }
+            else if (c == '"') in_str = 0;
+            continue;
+        }
+
+        switch (c) {
+            case '"':
+                in_str = 1;
+                fputc(c, fp); break;
+            case '{': case '[':
+                fputc(c, fp);
+                if (p[1] != '}' && p[1] != ']'){
+                    fputc('\n', fp);
+                    indent += 4;
+                    for (int i = 0; i < indent; i++) fputc(' ', fp);
+                } break;
+            case '}': case ']':
+                if (p[-1] != '{' && p[-1] != '['){
+                    fputc('\n', fp);
+                    indent -= 4;
+                    if (indent < 0) indent = 0;
+                    for (int i = 0; i < indent; i++) fputc(' ', fp);
+                }
+                fputc(c, fp); break;
+            case ',':
+                fputc(c, fp);
+                fputc('\n', fp);
+                for (int i = 0; i < indent; i++) fputc(' ', fp); break;
+
+            case ':':
+                fputc(c, fp);
+                fputc(' ', fp); break;
+
+            default: if (!isspace((unsigned char)c)) fputc(c, fp); break;
+        }
+    }
+    fputc('\n', fp);
+    return 0;
+}
+
 
 int save_data(const char *path, cJSON *root){
     //不重排,4real
-    char *out = cJSON_Print(root);
-    if (!out) return -1;
+    int ret = -1;
+    char *out = NULL, *tmp = NULL;
+    FILE *fp = NULL;
 
-    char tmp[16];
-    if (snprintf(tmp, sizeof(tmp), "%s.tmp", path) >= (int)sizeof(tmp)) goto fail;
-    FILE *fp = fopen(tmp, "w");
-    if (!fp) goto fail;
-    if (fputs(out, fp) == EOF){ fclose(fp); remove(tmp); goto fail; }
-    if (fflush(fp) != 0 || fclose(fp) != 0){ remove(tmp); goto fail; }
-    free(out);
-    if (rename(tmp, path) != 0){ remove(tmp); return -1;}
-    return 0;
-fail:
-    free(out); return -1;
+    out = cJSON_PrintUnformatted(root);
+    if (!out) goto over;
+
+    size_t need = strlen(path) + sizeof(".tmp");
+    tmp = (char *)malloc(need);
+    if (!tmp) goto over;
+    snprintf(tmp, need, "%s.tmp", path);
+    fp = fopen(tmp, "w"); if (!fp) goto over;
+    if (pretty_print(fp, out) != 0) goto over;
+    if (fflush(fp) != 0) goto over;
+    if (fclose(fp) != 0){ fp = NULL; goto over; }
+    fp = NULL;
+    if (rename(tmp, path) != 0) goto over;
+    
+    ret = 0;
+over:
+    if (fp) fclose(fp);
+    if (ret != 0 && tmp) remove (tmp);
+    free(out); free(tmp);
+    return ret;
 }
 
+
+// char opera
 cJSON *comp_account(const accList *accs){
     cJSON *root = cJSON_CreateArray();
     if (!root) return NULL;
@@ -115,10 +182,10 @@ cJSON *comp_account(const accList *accs){
         cJSON *obj = cJSON_CreateObject();
         if (!obj){ cJSON_Delete(root); prinerr("cJSON_CreateObject failed"); return NULL; }
         cJSON_AddNumberToObject(obj, "id", accs->account[i].id);
-        cJSON_AddStringToObject(obj, "date", accs->account[i].date);
         cJSON_AddStringToObject(obj, "sort", accs->account[i].sort);
         cJSON_AddStringToObject(obj, "amount", accs->account[i].amount);
         cJSON_AddStringToObject(obj, "mark", accs->account[i].mark);
+        cJSON_AddStringToObject(obj, "date", accs->account[i].date);
 
         cJSON_AddItemToArray(root, obj);
     }
@@ -177,6 +244,8 @@ bool getInput(char *buf, size_t size){
     return true;
 }
 
+
+// var opera
 bool validDate(const char *str){
     if (strlen(str) != 10) return false;
     for (int i = 0; i < 10; i++){
@@ -198,11 +267,13 @@ bool validDate(const char *str){
     if (day < 1 || day > days[month]) return false;
     return true;
 }
+
 void getToday(char *buf){
     time_t t = time(NULL);
     struct tm *localDate_text = localtime(&t);
     strftime(buf, 11, "%Y-%m-%d", localDate_text);
 }
+
 int formatAmount(char *buf, size_t size){
     char *c = buf;
     if (*c == '-') c++;
@@ -237,6 +308,7 @@ int formatAmount(char *buf, size_t size){
     *w++ = '\0';
     return 0;
 }
+
 bool validAmount(const char *str){
     if (str == NULL || *str == '\0') return false;
     
@@ -258,6 +330,7 @@ bool validAmount(const char *str){
     exit(2344);
 }*/
 
+// others
 void mait(char **str, const char *src){
     char *s = malloc(strlen(src) + 1);
     if (s == NULL){//may use perror? //yep
@@ -268,6 +341,8 @@ void mait(char **str, const char *src){
     free(*str);
     *str = s;
 }
+
+// in_
 //t在key则value，在value则value，二者皆true
 const char *in_sort(
         char *str,
@@ -282,6 +357,7 @@ const char *in_sort(
     //not in
     return NULL;
 }
+
 bool in_iQuit(const char *buf){
     const char * const iQuit[] = {"0", "q", "Q", "quit", "Quit", "退出", "合账", NULL}; 
     for (int i = 0; iQuit[i] != NULL; i++){
